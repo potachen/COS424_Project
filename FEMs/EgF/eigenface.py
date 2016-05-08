@@ -22,35 +22,22 @@ from sklearn.decomposition import RandomizedPCA
 from sklearn.decomposition import PCA
 from sklearn.cross_validation import train_test_split
 
+
 # # =================================
-# # class for the image data
-# # 1. data: a matrix with each row as an image
-# # 2. label: a vector with emotion labels
+# # class for the dimension reduced features
 # # =================================
-# class ImageData(object):
-# 	def __init__(self, data, label):
-# 		if data.shape[0] != len(label):
-# 			raise ValueError('data and emotion labels label are not in the same size!')
+# class DimReducedFeature(object):
+# 	def __init__(self, train, test, label):
+# 		if train.shape[0] != test.shape[0]:
+# 			raise ValueError('training and testing data are different in number of frames')
+# 		elif train.shape[1] != test.shape[1]:
+# 			raise ValueError('training and testing data are different in number of emotions')
+# 		elif train.shape[3] != test.shape[3]:
+# 			raise ValueError('training and testing data are different in number of features')
 # 		else:
-# 			self.data = data
+# 			self.train = train
+# 			self.test = test
 # 			self.label = label
-
-
-# =================================
-# class for the dimension reduced features
-# =================================
-class DimReducedFeature(object):
-	def __init__(self, train, test, label):
-		if train.shape[0] != test.shape[0]:
-			raise ValueError('training and testing data are different in number of frames')
-		elif train.shape[1] != test.shape[1]:
-			raise ValueError('training and testing data are different in number of emotions')
-		elif train.shape[3] != test.shape[3]:
-			raise ValueError('training and testing data are different in number of features')
-		else:
-			self.train = train
-			self.test = test
-			self.label = label
 			
 
 # =================================
@@ -68,6 +55,15 @@ def readImages(FileDir, orderFile, NumIllum, NumSub):
 	Imagesize = len(misc.imread(os.path.join(FileDir, Order.loc[0, 0])).flatten())
 	Data = np.zeros((NumSub, NumIllum, Imagesize))
 
+	# # check: every subject has the same illuminations and they are in the same order
+	# for k in range(0, 64):
+	# 	temp = []
+	# 	for j in range(0,10):
+	# 		temp.append(Order.loc[j*64+k ,0][7:])
+	# 	temp = set(temp)
+	# 	if len(temp) > 1:
+	# 		print('Wrong order in illumination: ' + str(k))
+
 	# Read images
 	for sub in range(0, NumSub):
 		for illum in range(0, NumIllum):
@@ -75,7 +71,7 @@ def readImages(FileDir, orderFile, NumIllum, NumSub):
 			temp = misc.imread(File).flatten()
 			Data[sub, illum, :] = temp
 
-	np.save(os.path.join(FileDir, 'Data_all_raw'), Data)
+	# np.save(os.path.join(FileDir, 'Data_all_raw'), Data)
 
 	return Data
 
@@ -85,38 +81,50 @@ def readImages(FileDir, orderFile, NumIllum, NumSub):
 # Input: 
 # Output:
 # =================================
-def eigenfaceExtract(FileDir, NumFrame, emotionLab, NumSub, Imagesize, ncomponents):
+def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir):
 
 	# np arrays storing all the dimenion reduced features (projection coefficient on the dominant eigenfaces)
 	# the axes are:
 	# 1 - subject (person);  2 - illumination; 3 - eigenface/NMF representation 
 
-	TrainSize = 10						# Train witht he first TrainSize illuminations
+	# temp = []
+	# for x in range(0, 64):
+	# 	if x not in list(TrainInds.loc[:,0]):
+	# 		temp.append(x)
+	# temp = pd.DataFrame(temp)
+	# temp.to_csv('./data/TestingIllums.txt', header = None, index = None)
+
+	TrainInds = pd.read_csv(TrainIndsFile, header = None)	# The illuminations that will be used as the file
+	TestInds = pd.read_csv(TestIndsFile, header = None)
+
+	EigenValuePercents = np.zeros((TrainInds.shape[0], ncomponents))
 
 	# in each run, 
-	for i in range(0,TrainSize):
+	for fold in range(0,TrainInds.shape[0]):
 
-	# NumTest = math.ceil(cv_fold * NumSub)	# number of subjects for testing
-	# NumTrain = NumSub - NumTest				# number of subjects for training
-	Features_train = np.zeros((NumFrame, NumEmo, NumTrain, ncomponents))
-	Features_test = np.zeros((NumFrame, NumEmo, NumTest, ncomponents))
+		# In each run, leave one out from the training indices to be used for baseline
+		TrainIndsTemp = []
+		TrainIndsTemp.extend(list(TrainInds.loc[range(0,fold),0]))		# checked! the values in TrainInds are integers
+		TrainIndsTemp.extend(list(TrainInds.loc[range(fold+1, TrainInds.shape[0]),0]))
+		TrainSize = len(TrainIndsTemp)
+		TestIndsTemp = [fold]
+		TestIndsTemp.extend(list(TestInds.loc[:,0]))
 
-	for t in range(0, NumFrame):
-		images = readImages(FileDir, t, emotionLab, NumSub, Imagesize)
+		# empty matrix for storing the low-dimensional features
+		Features_train = np.zeros((NumSub, TrainSize, ncomponents))				# leave one out from the training data for calculating the baseline
+		Features_test = np.zeros((NumSub, NumIllum-TrainSize, ncomponents))
 
-		# np arrays for the raw features of all emotions and subjects at one single point
-		# emotions and subjects are merged into one axis to perform PCA on them
-		Train = np.zeros((NumEmo*NumTrain, Imagesize))
-		Test = np.zeros((NumEmo*NumTest, Imagesize))
-		
-		for emo in range(0, len(emotionLab)):
-			temp = images.data[emo, :, :]
+		# Read the images
+		Data = readImages(FileDir, orderFile, NumIllum, NumSub)
 
-			# transform the images data into 
-			temp_train, temp_test = train_test_split(temp, test_size=0.25)
-
-			Train[emo*NumTrain:(emo+1)*NumTrain, :] = temp_train
-			Test[emo*NumTest:(emo+1)*NumTest, :] = temp_test
+		# randomizedPCA in scikit learn needs the input to be a 2D long matrix
+		# need to concatenate subjects and illuminations into one dimension
+		Train = np.zeros((NumSub*TrainSize, Data.shape[2]))
+		Test = np.zeros((NumSub*(NumIllum-TrainSize), Data.shape[2]))
+			
+		for sub in range(0, NumSub):
+			Train[sub*TrainSize:(sub+1)*TrainSize, :] = Data[sub, TrainIndsTemp, :]
+			Test[sub*(NumIllum-TrainSize):(sub+1)*(NumIllum-TrainSize), :] = Data[sub, TestIndsTemp, :]
 
 
 		# get the time of PCA analysis for one frame
@@ -133,15 +141,21 @@ def eigenfaceExtract(FileDir, NumFrame, emotionLab, NumSub, Imagesize, ncomponen
 		Train_pca = pca.transform(Train)
 		Test_pca = pca.transform(Test)
 
+		EigenValuePercents[fold, :] = pca.explained_variance_ratio_
+
 		# get the time of PCA analysis for one frame
-		print('PCA time for this frame: %.2fs' % (time.time() - t0))
+		print('PCA time for this fold: %.2fs' % (time.time() - t0))
 
 		# after dimension reduction from PCA, the emotion and subject axes are seperated into a higher dimensional matrix
-		for emo in range(0, len(emotionLab)):
-			Features_train[t,emo,:,:] = Train_pca[emo*NumTrain:(emo+1)*NumTrain, :]
-			Features_test[t,emo,:,:] = Test_pca[emo*NumTest:(emo+1)*NumTest, :]
+		for sub in range(0, NumSub):
+			Features_train[sub,:,:] = Train_pca[sub*TrainSize:(sub+1)*TrainSize, :]
+			Features_test[sub,:,:] = Test_pca[sub*(NumIllum-TrainSize):(sub+1)*(NumIllum-TrainSize), :]
 
-	return DimReducedFeature(Features_train, Features_test, emotionLab)
+		np.save(os.path.join(OutDir, 'egf_' + str(fold) + '_tr'), Features_train)
+		np.save(os.path.join(OutDir, 'egf_' + str(fold) + '_te'), Features_test)
+
+	np.savetxt(os.path.join(OutDir, 'Percents.txt'), fmt='%.5f', delimiter='\t')
+
 
 
 # =================================
@@ -149,26 +163,28 @@ def eigenfaceExtract(FileDir, NumFrame, emotionLab, NumSub, Imagesize, ncomponen
 # =================================
 def getFeatures():
 	WorkingDir = '/media/zidong/Work/Princeton/COS424/project'
-	cv_num = 1		# number of cross vadiations to be performed
+	FileDir = os.path.join(WorkingDir, 'data/background_subtracted/tif_files')
+	orderFile = os.path.join(WorkingDir, 'data/MasterFileOrder.txt')
 
-	ImageDir = os.path.join(WorkingDir, 'data/test_eigenface')
-	if not os.path.exists(ImageDir):
-		os.makedirs(ImageDir)
+	TrainIndsFile = os.path.join(WorkingDir, 'data/TrainingIllums.txt')
+	TestIndsFile = os.path.join(WorkingDir, 'data/TestingIllums.txt')
 
-	FeatureDir = os.path.join(WorkingDir, 'data/test_eigenface')
-	if not os.path.exists(FeatureDir):
-		os.makedirs(FeatureDir)
+	OutDir = os.path.join(WorkingDir, 'data/test_eigenface')
+	if not os.path.exists(OutDir):
+		os.makedirs(OutDir)
 
-	NumFrame = 2
-	emotionLab = ['happy', 'sad']
-	NumSub = 50
-	Imagesize = 10000
+	# ImageDir = os.path.join(WorkingDir, 'data/test_eigenface')
+	# if not os.path.exists(ImageDir):
+	# 	os.makedirs(ImageDir)
+
+	NumSub = 10
+	NumIllum = 64
 	ncomponents = 50
 
-	for i in range(0, cv_num):
-		Features = eigenfaceExtract(ImageDir, NumFrame, emotionLab, NumSub, Imagesize, ncomponents)
-		np.save(FeatureDir + '/' + '-'.join(Features.label) + 'train_' + str(i), Features.train)
-		np.save(FeatureDir + '/' + '-'.join(Features.label) + 'test_' + str(i), Features.train)
+
+	eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir)
+
+
 
 
 

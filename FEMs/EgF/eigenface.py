@@ -14,6 +14,7 @@ import math
 import sys
 import os
 import time
+from PIL import Image
 from scipy import ndimage
 from scipy import misc
 from sklearn.cross_validation import train_test_split
@@ -21,18 +22,18 @@ from sklearn.decomposition import RandomizedPCA
 from sklearn.decomposition import PCA
 from sklearn.cross_validation import train_test_split
 
-# =================================
-# class for the image data
-# 1. data: a matrix with each row as an image
-# 2. label: a vector with emotion labels
-# =================================
-class ImageData(object):
-	def __init__(self, data, label):
-		if data.shape[0] != len(label):
-			raise ValueError('data and emotion labels label are not in the same size!')
-		else:
-			self.data = data
-			self.label = label
+# # =================================
+# # class for the image data
+# # 1. data: a matrix with each row as an image
+# # 2. label: a vector with emotion labels
+# # =================================
+# class ImageData(object):
+# 	def __init__(self, data, label):
+# 		if data.shape[0] != len(label):
+# 			raise ValueError('data and emotion labels label are not in the same size!')
+# 		else:
+# 			self.data = data
+# 			self.label = label
 
 
 # =================================
@@ -58,26 +59,25 @@ class DimReducedFeature(object):
 # 1. Data: a matrix: 1 - emotion;  2 - subjects;  3 - raw features
 # 2. Label: a list of strings (emotions)
 # =================================
-def readImages(FileDir, FrameInd, emotionLab, NumSub, Imagesize):
+def readImages(FileDir, orderFile, NumIllum, NumSub):
 
 	# A np array storing raw image features for a single time point
 	# the axes are:
-	# 1 - emotion;  2 - subjects;  3 - raw features
-	# Data = np.random.rand(len(emotionLab), NumSub, Imagesize)			# random numbers for testing
-	Data = np.zeros((len(emotionLab), NumSub, Imagesize))
-	
-	# Imagesize ??
+	# 1 - subjects;  2 - illuminations;  3 - raw features
+	Order = pd.read_csv(orderFile, header = None)
+	Imagesize = len(misc.imread(os.path.join(FileDir, Order.loc[0, 0])).flatten())
+	Data = np.zeros((NumSub, NumIllum, Imagesize))
+
 	# Read images
-	for emo in range(0, len(emotionLab)):
-		for k in range(0, NumSub):
-			temp = misc.imread(FileDir)
-			if len(face.shape) != 2:
-				raise ValueError('Image is not black and white')
-			
-			temp = temp.flatten()
-			Data[emo, k, :] = temp
-	
-	return ImageData(Data, emotionLab)
+	for sub in range(0, NumSub):
+		for illum in range(0, NumIllum):
+			File = os.path.join(FileDir, Order.loc[NumIllum*sub + illum, 0])
+			temp = misc.imread(File).flatten()
+			Data[sub, illum, :] = temp
+
+	np.save(os.path.join(FileDir, 'Data_all_raw'), Data)
+
+	return Data
 
 
 # =================================
@@ -89,11 +89,15 @@ def eigenfaceExtract(FileDir, NumFrame, emotionLab, NumSub, Imagesize, ncomponen
 
 	# np arrays storing all the dimenion reduced features (projection coefficient on the dominant eigenfaces)
 	# the axes are:
-	# 1 - time;  2 - expression (emotion);  3 - subject (person);  4 - eigenface/NMF representation 
-	NumEmo = len(emotionLab)
-	cv_fold = 0.25
-	NumTest = math.ceil(cv_fold * NumSub)	# number of subjects for testing
-	NumTrain = NumSub - NumTest				# number of subjects for training
+	# 1 - subject (person);  2 - illumination; 3 - eigenface/NMF representation 
+
+	TrainSize = 10						# Train witht he first TrainSize illuminations
+
+	# in each run, 
+	for i in range(0,TrainSize):
+
+	# NumTest = math.ceil(cv_fold * NumSub)	# number of subjects for testing
+	# NumTrain = NumSub - NumTest				# number of subjects for training
 	Features_train = np.zeros((NumFrame, NumEmo, NumTrain, ncomponents))
 	Features_test = np.zeros((NumFrame, NumEmo, NumTest, ncomponents))
 

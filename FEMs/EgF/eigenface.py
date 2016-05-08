@@ -31,7 +31,7 @@ from sklearn.cross_validation import train_test_split
 # 1. Data: a matrix: 1 - emotion;  2 - subjects;  3 - raw features
 # 2. Label: a list of strings (emotions)
 # =================================
-def readImages(FileDir, orderFile, NumIllum, NumSub):
+def readImages(FileDir, orderFile, NumIllum, NumSub, normalized = False):
 
 	# A np array storing raw image features for a single time point
 	# the axes are:
@@ -54,9 +54,12 @@ def readImages(FileDir, orderFile, NumIllum, NumSub):
 		for illum in range(0, NumIllum):
 			File = os.path.join(FileDir, Order.loc[NumIllum*sub + illum, 0])
 			temp = misc.imread(File).flatten()
+			if normalized:
+				temp = temp - np.mean(temp)
+				temp = temp / np.std(temp)
 			Data[sub, illum, :] = temp
 
-	# np.save(os.path.join(FileDir, 'Data_all_raw'), Data)
+	# np.save(os.path.join(FileDir, 'Data_all_normalized'), Data)
 
 	return Data
 
@@ -66,6 +69,7 @@ def readImages(FileDir, orderFile, NumIllum, NumSub):
 # then it's saved as imagename
 # =================================
 def constructImages(Vector, width, height, imagename):
+
 	pass
 
 
@@ -81,13 +85,15 @@ def constructImages(Vector, width, height, imagename):
 # 	ncomponents - number of components to compute
 # 	Outdir - output directory
 # 	randomized - boolean, if True use randomizedPCA, if False use PCA
+# 	normalized - boolean, if the data is normalized by mean and standard error
+# 	remove_dominant_components_out - integer, default 0, remove the first n dorminant components (remove the projections on those directions)
 # Output:
 # 	1. save the eigenface representation of each fold in OutDir
 # 		3D matrix: 1 - subject (person);  2 - illumination; 3 - eigenface representation 
 #	2. save the percentage of variance contributed by different components
 # 	all saved as .npy
 # =================================
-def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir, randomized=True):
+def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir, randomized = True, normalized = False, remove_dominant_components_out = 0):
 
 	# np arrays storing all the dimenion reduced features (projection coefficient on the dominant eigenfaces)
 	# the axes are:
@@ -109,9 +115,9 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 
 	# choose randomizedPCA or PCA
 	if randomized:
-		print('Working on:', ncomponents, 'components with', 'randomizedPCA')
+		print('Working on:', ncomponents, 'components with', 'randomizedPCA,', 'data normalized?', normalized)
 	else:
-		print('Working on:', ncomponents, 'components with', 'PCA')
+		print('Working on:', ncomponents, 'components with', 'PCA,', 'data normalized?', normalized)
 
 	# in each run, leave one out from training set to be used for baseline
 	for fold in range(0,TrainInds.shape[0]):
@@ -127,11 +133,11 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 		print('Test Inds:', TestIndsTemp[0])
 
 		# empty matrix for storing the low-dimensional features
-		Features_train = np.zeros((NumSub, TrainSize, ncomponents))				# leave one out from the training data for calculating the baseline
-		Features_test = np.zeros((NumSub, NumIllum-TrainSize, ncomponents))
+		Features_train = np.zeros((NumSub, TrainSize, ncomponents - remove_dominant_components_out))				# first several components removed
+		Features_test = np.zeros((NumSub, NumIllum-TrainSize, ncomponents - remove_dominant_components_out))
 
 		# Read the images
-		Data = readImages(FileDir, orderFile, NumIllum, NumSub)
+		Data = readImages(FileDir, orderFile, NumIllum, NumSub, normalized)
 
 		# randomizedPCA in scikit learn needs the input to be a 2D long matrix
 		# need to concatenate subjects and illuminations into one dimension
@@ -153,9 +159,14 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 		else:
 			pca = PCA(n_components=ncomponents, whiten=True).fit(Train)
 
-		# perform dimension reduction on Train and X_test
+		# perform dimension reduction on Train and Test
 		Train_pca = pca.transform(Train)
 		Test_pca = pca.transform(Test)
+
+		# only select the rest of the components
+		if remove_dominant_components_out > 0:
+			Train_pca = Train_pca[:, remove_dominant_components_out:]
+			Test_pca = Test_pca[:, remove_dominant_components_out:]
 
 		# the percentaage of variance
 		EigenValuePercents[:, fold] = pca.explained_variance_ratio_
@@ -190,19 +201,50 @@ def getFeatures():
 
 	NumSub = 10
 	NumIllum = 64
-	ncomponents = [6,10,20,50,100]
+	ncomponents = [6,10,20,50,100]	# correspond to 80% 90% 95% >99% >>99%
 
+	# for ncomp in ncomponents:
+	# 	# randomizedPCA, unnormalized
+	# 	OutDir = os.path.join(WorkingDir, 'data/eigenfaces/unnormalized/' + str(ncomp) + '_component')
+	# 	if not os.path.exists(OutDir):
+	# 		os.makedirs(OutDir)
+	# 	eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=True, normalized=False)
+	# 	# PCA, unnormalized
+	# 	OutDir = os.path.join(WorkingDir, 'data/eigenfaces_PCA/unnormalized/' + str(ncomp) + '_component')
+	# 	if not os.path.exists(OutDir):
+	# 		os.makedirs(OutDir)
+	# 	eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=False, normalized=False)
+	
+
+
+	ncomponents = [8,14,23,50,100]	# correspond to 80% 90% 95% >99% >>99%
+
+	# remove_dominant_components_out=0
+	# for ncomp in ncomponents:
+	# 	# randomizedPCA, normalized, remove_dominant_components_out=3
+	# 	OutDir = os.path.join(WorkingDir, 'data/eigenfaces/normalized/' + str(ncomp) + '_component')
+	# 	if not os.path.exists(OutDir):
+	# 		os.makedirs(OutDir)
+	# 	eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=True, normalized=True, remove_dominant_components_out=remove_dominant_components_out)
+	# 	# PCA, normalized, remove_dominant_components_out=3
+	# 	OutDir = os.path.join(WorkingDir, 'data/eigenfaces_PCA/normalized/' + str(ncomp) + '_component')
+	# 	if not os.path.exists(OutDir):
+	# 		os.makedirs(OutDir)
+	# 	eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=False, normalized=True, remove_dominant_components_out=remove_dominant_components_out)
+
+
+	remove_dominant_components_out=3
 	for ncomp in ncomponents:
-		OutDir = os.path.join(WorkingDir, 'data/eigenfaces/' + str(ncomp) + '_component')
+		# randomizedPCA, normalized, remove_dominant_components_out=3
+		OutDir = os.path.join(WorkingDir, 'data/eigenfaces/normalized_first_' + str(remove_dominant_components_out) + '_components_removed/' + str(ncomp) + '_component')
 		if not os.path.exists(OutDir):
 			os.makedirs(OutDir)
-		eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=True)
-
-		OutDir = os.path.join(WorkingDir, 'data/eigenfaces_PCA/' + str(ncomp) + '_component')
+		eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=True, normalized=True, remove_dominant_components_out=remove_dominant_components_out)
+		# PCA, normalized, remove_dominant_components_out=3
+		OutDir = os.path.join(WorkingDir, 'data/eigenfaces_PCA/normalized_first_' + str(remove_dominant_components_out) + '_components_removed/' + str(ncomp) + '_component')
 		if not os.path.exists(OutDir):
 			os.makedirs(OutDir)
-		eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=False)
-
+		eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=False, normalized=True, remove_dominant_components_out=remove_dominant_components_out)
 
 if __name__ == '__main__':
     getFeatures()

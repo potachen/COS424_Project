@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 ########################################
 # This is a module for reading images and extracting features based on eigenfaces
 # eigenfaces are determined from the training images
@@ -21,23 +23,6 @@ from sklearn.cross_validation import train_test_split
 from sklearn.decomposition import RandomizedPCA
 from sklearn.decomposition import PCA
 from sklearn.cross_validation import train_test_split
-
-
-# # =================================
-# # class for the dimension reduced features
-# # =================================
-# class DimReducedFeature(object):
-# 	def __init__(self, train, test, label):
-# 		if train.shape[0] != test.shape[0]:
-# 			raise ValueError('training and testing data are different in number of frames')
-# 		elif train.shape[1] != test.shape[1]:
-# 			raise ValueError('training and testing data are different in number of emotions')
-# 		elif train.shape[3] != test.shape[3]:
-# 			raise ValueError('training and testing data are different in number of features')
-# 		else:
-# 			self.train = train
-# 			self.test = test
-# 			self.label = label
 			
 
 # =================================
@@ -78,38 +63,54 @@ def readImages(FileDir, orderFile, NumIllum, NumSub):
 
 # =================================
 # Extract eigenface features
-# Input: 
+# Input:
+# 	FileDir - Directory for the images
+# 	orderFile - order of images (order of illumination angles)
+# 	NumIllum - number of illuminations
+# 	NumSub - number of subjects
+# 	TrainIndsFile - the indices of illuminations that are used as training set (although in each run leave one out from the training set for baseline)
+# 	TestIndsFile - the indices of illuminations that are used as testing set
+# 	ncomponents - number of components to compute
+# 	Outdir - output directory
+# 	randomized - boolean, if True use randomizedPCA, if False use PCA
 # Output:
+# 	1. save the eigenface representation of each fold in OutDir
+# 		3D matrix: 1 - subject (person);  2 - illumination; 3 - eigenface representation 
+#	2. save the percentage of variance contributed by different components
+# 	all saved as .npy
 # =================================
-def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir, randomized):
+def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir, randomized=True):
 
 	# np arrays storing all the dimenion reduced features (projection coefficient on the dominant eigenfaces)
 	# the axes are:
-	# 1 - subject (person);  2 - illumination; 3 - eigenface/NMF representation 
+	# 1 - subject (person);  2 - illumination; 3 - eigenface representation 
 
+	# # generate TestIndsFile
 	# temp = []
 	# for x in range(0, 64):
 	# 	if x not in list(TrainInds.loc[:,0]):
 	# 		temp.append(x)
 	# temp = pd.DataFrame(temp)
-	# temp.to_csv('./data/TestingIllums.txt', header = None, index = None)
+	# temp.to_csv(TestIndsFile, header = None, index = None)
 
 	TrainInds = pd.read_csv(TrainIndsFile, header = None)	# The illuminations that will be used as the file
 	TestInds = pd.read_csv(TestIndsFile, header = None)
 
+	# for saving percentage of variance ocntributed by different components
 	EigenValuePercents = np.zeros((ncomponents, TrainInds.shape[0]))
 
+	# choose randomizedPCA or PCA
 	if randomized:
 		print('Working on:', ncomponents, 'components with', 'randomizedPCA')
 	else:
 		print('Working on:', ncomponents, 'components with', 'PCA')
 
-	# in each run, 
+	# in each run, leave one out from training set to be used for baseline
 	for fold in range(0,TrainInds.shape[0]):
 
 		# In each run, leave one out from the training indices to be used for baseline
 		TrainIndsTemp = []
-		TrainIndsTemp.extend(list(TrainInds.loc[range(0,fold),0]))		# checked! the values in TrainInds are integers
+		TrainIndsTemp.extend(list(TrainInds.loc[range(0,fold),0]))		# checked! the values in TrainInds are integers, so they can be used as indices
 		TrainIndsTemp.extend(list(TrainInds.loc[range(fold+1, TrainInds.shape[0]),0]))
 		TrainSize = len(TrainIndsTemp)
 		TestIndsTemp = [fold]
@@ -125,12 +126,10 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 		# randomizedPCA in scikit learn needs the input to be a 2D long matrix
 		# need to concatenate subjects and illuminations into one dimension
 		Train = np.zeros((NumSub*TrainSize, Data.shape[2]))
-		Test = np.zeros((NumSub*(NumIllum-TrainSize), Data.shape[2]))
-			
+		Test = np.zeros((NumSub*(NumIllum-TrainSize), Data.shape[2]))	
 		for sub in range(0, NumSub):
 			Train[sub*TrainSize:(sub+1)*TrainSize, :] = Data[sub, TrainIndsTemp, :]
 			Test[sub*(NumIllum-TrainSize):(sub+1)*(NumIllum-TrainSize), :] = Data[sub, TestIndsTemp, :]
-
 
 		# get the time of PCA analysis for one frame
 		t0 = time.time()
@@ -148,6 +147,7 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 		Train_pca = pca.transform(Train)
 		Test_pca = pca.transform(Test)
 
+		# the percentaage of variance
 		EigenValuePercents[:, fold] = pca.explained_variance_ratio_
 
 		# get the time of PCA analysis for one frame
@@ -158,9 +158,11 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 			Features_train[sub,:,:] = Train_pca[sub*TrainSize:(sub+1)*TrainSize, :]
 			Features_test[sub,:,:] = Test_pca[sub*(NumIllum-TrainSize):(sub+1)*(NumIllum-TrainSize), :]
 
+		# save as the deault .npy binary file
 		np.save(os.path.join(OutDir, 'egf_' + str(fold) + '_tr'), Features_train)
 		np.save(os.path.join(OutDir, 'egf_' + str(fold) + '_te'), Features_test)
 
+	# save the percentage of variance contirbuted by different components
 	np.savetxt(os.path.join(OutDir, 'Percents.txt'), EigenValuePercents, fmt='%.5f', delimiter='\t')
 
 
@@ -175,10 +177,6 @@ def getFeatures():
 
 	TrainIndsFile = os.path.join(WorkingDir, 'data/TrainingIllums.txt')
 	TestIndsFile = os.path.join(WorkingDir, 'data/TestingIllums.txt')
-
-	# ImageDir = os.path.join(WorkingDir, 'data/test_eigenface')
-	# if not os.path.exists(ImageDir):
-	# 	os.makedirs(ImageDir)
 
 	NumSub = 10
 	NumIllum = 64

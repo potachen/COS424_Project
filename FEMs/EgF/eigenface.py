@@ -154,7 +154,7 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 		np.save(os.path.join(OutDir, 'egf_' + str(fold) + '_tr'), Features_train)
 		np.save(os.path.join(OutDir, 'egf_' + str(fold) + '_te'), Features_test)
 
-	np.savetxt(os.path.join(OutDir, 'Percents.txt'), fmt='%.5f', delimiter='\t')
+	np.savetxt(os.path.join(OutDir, 'Percents.txt'), EigenValuePercents, fmt='%.5f', delimiter='\t')
 
 
 
@@ -169,22 +169,22 @@ def getFeatures():
 	TrainIndsFile = os.path.join(WorkingDir, 'data/TrainingIllums.txt')
 	TestIndsFile = os.path.join(WorkingDir, 'data/TestingIllums.txt')
 
-	OutDir = os.path.join(WorkingDir, 'data/test_eigenface')
-	if not os.path.exists(OutDir):
-		os.makedirs(OutDir)
-
 	# ImageDir = os.path.join(WorkingDir, 'data/test_eigenface')
 	# if not os.path.exists(ImageDir):
 	# 	os.makedirs(ImageDir)
 
 	NumSub = 10
 	NumIllum = 64
-	ncomponents = 50
+	ncomponents = 100
 
+	OutDir = os.path.join(WorkingDir, 'data/eigenfaces/' + str(ncomponents) + '_component')
+	if not os.path.exists(OutDir):
+		os.makedirs(OutDir)
 
 	eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir)
 
-
+if __name__ == '__main__':
+    getFeatures()
 
 
 

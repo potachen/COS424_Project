@@ -17,12 +17,13 @@ def plot_heatmap1(data, title='Heatmap', cmap=plt.cm.Blues):
     # plt.pcolor(cm)
 
     plt.colorbar()
-    # tick_marks = np.arange(len(iris.target_names))
-    # plt.xticks(tick_marks, iris.target_names, rotation=45)
-    # plt.yticks(tick_marks, iris.target_names)
     plt.title(title, fontsize=18)
     plt.ylabel('True label', fontsize=16)
     plt.xlabel('Predicted label', fontsize=16)
+
+    # tick_marks = np.arange(len(iris.target_names))
+    # plt.xticks(tick_marks, iris.target_names, rotation=45)
+    # plt.yticks(tick_marks, iris.target_names)
 
     plt.savefig('../FIGs/plot_heatmap.pdf', format='pdf')
 

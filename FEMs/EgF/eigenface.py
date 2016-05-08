@@ -81,7 +81,7 @@ def readImages(FileDir, orderFile, NumIllum, NumSub):
 # Input: 
 # Output:
 # =================================
-def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir):
+def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir, randomized):
 
 	# np arrays storing all the dimenion reduced features (projection coefficient on the dominant eigenfaces)
 	# the axes are:
@@ -97,7 +97,12 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 	TrainInds = pd.read_csv(TrainIndsFile, header = None)	# The illuminations that will be used as the file
 	TestInds = pd.read_csv(TestIndsFile, header = None)
 
-	EigenValuePercents = np.zeros((TrainInds.shape[0], ncomponents))
+	EigenValuePercents = np.zeros((ncomponents, TrainInds.shape[0]))
+
+	if randomized:
+		print('Working on:', ncomponents, 'components with', 'randomizedPCA')
+	else:
+		print('Working on:', ncomponents, 'components with', 'PCA')
 
 	# in each run, 
 	for fold in range(0,TrainInds.shape[0]):
@@ -134,14 +139,16 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 		# ????????????
 		# use PCA or randomizedPCA ?
 		# ????????????
-		# pca = PCA(n_components=ncomponents, whiten=True).fit(Train)
-		pca = RandomizedPCA(n_components=ncomponents, whiten=True).fit(Train)
+		if randomized:
+			pca = RandomizedPCA(n_components=ncomponents, whiten=True).fit(Train)
+		else:
+			pca = PCA(n_components=ncomponents, whiten=True).fit(Train)
 
 		# perform dimension reduction on Train and X_test
 		Train_pca = pca.transform(Train)
 		Test_pca = pca.transform(Test)
 
-		EigenValuePercents[fold, :] = pca.explained_variance_ratio_
+		EigenValuePercents[:, fold] = pca.explained_variance_ratio_
 
 		# get the time of PCA analysis for one frame
 		print('PCA time for this fold: %.2fs' % (time.time() - t0))
@@ -175,13 +182,19 @@ def getFeatures():
 
 	NumSub = 10
 	NumIllum = 64
-	ncomponents = 100
+	ncomponents = [6,10,20,50,100]
 
-	OutDir = os.path.join(WorkingDir, 'data/eigenfaces/' + str(ncomponents) + '_component')
-	if not os.path.exists(OutDir):
-		os.makedirs(OutDir)
+	for ncomp in ncomponents:
+		OutDir = os.path.join(WorkingDir, 'data/eigenfaces/' + str(ncomp) + '_component')
+		if not os.path.exists(OutDir):
+			os.makedirs(OutDir)
+		eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=True)
 
-	eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomponents, OutDir)
+		OutDir = os.path.join(WorkingDir, 'data/eigenfaces_PCA/' + str(ncomp) + '_component')
+		if not os.path.exists(OutDir):
+			os.makedirs(OutDir)
+		eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIndsFile, ncomp, OutDir, randomized=False)
+
 
 if __name__ == '__main__':
     getFeatures()

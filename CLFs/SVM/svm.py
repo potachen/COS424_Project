@@ -37,7 +37,7 @@ def func_SVM(x_train, y_train, x_test):
     print "done in %0.3fs" % (time() - t0)
     print "Best estimator found by grid search:"
     print clf_svm.best_estimator_
-    print "Best Score:", clf_svm.grid_scores_, '\n'
+    # print "Best Score:", clf_svm.grid_scores_, '\n'
 
     # Quantitative evaluation of the model quality on the test set
 
@@ -53,16 +53,25 @@ def func_SVM(x_train, y_train, x_test):
 
 
 def main():
+
+    x_training = None
+    y_training = None
+    x_testing = None
+
+
+
+    y_pred = func_SVM(x_training, y_training, x_testing)
+    print y_pred
+
+
+if __name__ == '__main__':
+
     x_training = np.array([[-1, -1, -1, -1], [-2, -1, -2, -3], [1, 1, 2, 1], [2, 1, 3, 3],
                            [1, 3, 1, 1], [2, 5, 3, 1], [-1, -3, -2, -1], [-2, -5, -3, -2]])
     y_training = np.array([1, 1, 2, 2, 1, 1, 2, 2])
     x_testing = [-0.8, -1, 2, -3]
 
-    print func_SVM(x_training, y_training, x_testing)
+    # print func_SVM(x_training, y_training, x_testing)
 
-    # y_pred = func_SVM(x_training, y_training, x_testing)
-    # print y_pred
-
-
-if __name__ == '__main__':
-    main()
+    y_pred = func_SVM(x_training, y_training, x_testing)
+    print "The predicted class for testing point [-0.8, -1, 2, -3] is:", y_pred[0]

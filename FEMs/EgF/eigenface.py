@@ -62,6 +62,14 @@ def readImages(FileDir, orderFile, NumIllum, NumSub):
 
 
 # =================================
+# functions that reads a flattened vector and reshapes it into a image specified by width and heigh
+# then it's saved as imagename
+# =================================
+def constructImages(Vector, width, height, imagename):
+	pass
+
+
+# =================================
 # Extract eigenface features
 # Input:
 # 	FileDir - Directory for the images
@@ -110,11 +118,13 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 
 		# In each run, leave one out from the training indices to be used for baseline
 		TrainIndsTemp = []
-		TrainIndsTemp.extend(list(TrainInds.loc[range(0,fold),0]))		# checked! the values in TrainInds are integers, so they can be used as indices
-		TrainIndsTemp.extend(list(TrainInds.loc[range(fold+1, TrainInds.shape[0]),0]))
-		TrainSize = len(TrainIndsTemp)
-		TestIndsTemp = [fold]
+		TrainIndsTemp.extend(list(TrainInds.loc[range(0,fold), 0]))		# checked! the values in TrainInds are integers, so they can be used as indices
+		TrainIndsTemp.extend(list(TrainInds.loc[range(fold+1, TrainInds.shape[0]), 0]))
+		TestIndsTemp = [TrainInds.loc[fold, 0]]				# The one that is left out is added to the first one in testing set				
 		TestIndsTemp.extend(list(TestInds.loc[:,0]))
+		TrainSize = len(TrainIndsTemp)						# TrainSize is now the original size - 1
+		print('Train Inds:', TrainIndsTemp)
+		print('Test Inds:', TestIndsTemp[0])
 
 		# empty matrix for storing the low-dimensional features
 		Features_train = np.zeros((NumSub, TrainSize, ncomponents))				# leave one out from the training data for calculating the baseline

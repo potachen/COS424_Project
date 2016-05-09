@@ -12,31 +12,19 @@ dimension reduction on each fold
 import pandas as pd
 import numpy as np
 import FEMs.NMF.nmf as NMF
-import matplotlib.pyplot as plt
+import scipy.misc as misc
 
 def reshapeAndPrint( components, fold ):
     '''Takes in the vector encoding of each of the nmf components
     and plots them to file'''
-    h = 192
-    w = 168
-    nComp = np.shape( components )[0]
-    nCompPlot = nComp #6
-    plotComps = components
-    plotComps.reshape((nCompPlot,h,w))
-    titles = ["comp. %d" % (i+1) for i in range(plotComps.shape[0])]
-    n_row = 4
-    n_col = 6
-    plt.figure(figsize=(1.8 * n_col, 2.4 * n_row))
-    plt.subplots_adjust(bottom=0.03, left=.01, right=.99, top=.97, hspace=.35)
-    for i in range(n_row * n_col):
-        plt.subplot(n_row, n_col, i + 1)
-        plt.imshow(plotComps[i].reshape((h, w)), cmap=plt.cm.gray)
-        plt.title(titles[i], size=12)
-        plt.xticks(())
-        plt.yticks(())
-    # save
-    plt.savefig('./Results/Images/nComp' + str(nComp) + \
-             '_fold' + str(fold) + '.png')
+    imHeight = 192
+    imWidth = 168
+    nComp = np.shape(components)[0]
+    for comp in range(nComp):
+        image = np.reshape(components[comp,:],(imHeight,imWidth),order='C')
+        savestring = './Results/images/nComp' + str(nComp) + \
+            '_comp' + str(comp) + '_fold' + str(fold) + '.jpg'
+        misc.toimage(image, cmin=0.0, cmax=...).save(savestring)
 
 
 def main():
@@ -67,7 +55,7 @@ def main():
     sizeTat = np.shape(tatInd)[0]
     nSubjects = np.shape(tatImages)[0]
     nPixels = np.shape(allImages)[2]
-    compList = [24]      #[8,14,24,50]
+    compList = [8,14,24,50]
     # Record the reconstruction error for each nComponents and fold
     sizeCompList = np.shape(compList)[0]
     recErrorMat = np.zeros((sizeCompList,sizeTat))
@@ -101,8 +89,7 @@ def main():
             np.save('./Results/' + str(nComp) + '/nmf_' + str(fold) + '_te', \
                     lowDimTest )
             recErrorMat[compIndex,fold] = recErr
-            if fold == 0:
-                reshapeAndPrint( compnts, fold )
+            reshapeAndPrint( compnts, fold )
 
     # Write the reconstruction error to file
     np.save('./Results/recError',recErrorMat)

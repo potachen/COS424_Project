@@ -179,7 +179,7 @@ def eigenfaceExtract(FileDir, orderFile, NumIllum, NumSub, TrainIndsFile, TestIn
 		h = 192
 		w = 168			# this is the saize of images
 		eigenfaces = pca.components_.reshape((ncomponents, h, w))
-		eigenface_titles = ["eigenface %d" % i for i in range(eigenfaces.shape[0])]
+		eigenface_titles = ["eigenface %d" % (i+1) for i in range(eigenfaces.shape[0])]
 		# plot_gallery(eigenfaces, eigenface_titles, h, w)
 		n_row = 2
 		n_col = 3

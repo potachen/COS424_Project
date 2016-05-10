@@ -184,8 +184,8 @@ def svm_for_nmf():
         for i in range(13):
 
             ### Loading feature extracted data
-            train = np.load('../../Data/nmf/%d/nmf_%d_tr.npy' % (nmf_comp, i))
-            test = np.load('../../Data/nmf/%d/nmf_%d_te.npy' % (nmf_comp, i))
+            train = np.load('../../Data/nmf_reg/%d/nmf_%d_tr.npy' % (nmf_comp, i))
+            test = np.load('../../Data/nmf_reg/%d/nmf_%d_te.npy' % (nmf_comp, i))
 
             # print train
 
@@ -206,8 +206,8 @@ def svm_for_nmf():
         print pred_mat[0]
         print test_mat[0]
 
-        np.save('predictions/nmf_%d_comp_pred' % nmf_comp, pred_mat)
-        np.save('predictions/nmf_%d_comp_true_label' % nmf_comp, test_mat)
+        np.save('predictions/nmf_reg_%d_comp_pred' % nmf_comp, pred_mat)
+        np.save('predictions/nmf_reg_%d_comp_true_label' % nmf_comp, test_mat)
 
 
 def main():

@@ -36,11 +36,12 @@ def prepareDataInput( inArray ):
             outArray[(j+i*mSize),:] = inArray[i,j,:]
     return outArray
 
-def produceEncoding( trainX, nComponents ):
+def produceEncoding( trainX, nComponents, alpha, l1_ratio ):
     '''Produces an NMF encoding from the training
     data matrix'''
     model = NMF( n_components=nComponents, solver='cd', \
-                tol=1e-4, max_iter=200, alpha=0.0 )
+                tol=1e-4, max_iter=200, alpha=alpha, \
+                l1_ratio=l1_ratio )
     model.fit( trainX )
     return model
 
@@ -56,7 +57,7 @@ def prepareDataOutput( inArray, out0, out1 ):
             outArray[i,j,:] = inArray[(j+i*mSize),:]
     return outArray
 
-def reduceDim( trainData, testData, nComponents ):
+def reduceDim( trainData, testData, nComponents, alpha, l1_ratio ):
     '''Takes in an image for each subject and returns
     a low dimensional representation for each subject '''
     outDim0 = np.shape( trainData )[0]
@@ -64,7 +65,7 @@ def reduceDim( trainData, testData, nComponents ):
     testOutDim1 = np.shape( testData )[1]
     trainX = prepareDataInput( trainData )
     testX = prepareDataInput( testData )
-    model = produceEncoding( trainX, nComponents )
+    model = produceEncoding( trainX, nComponents, alpha, l1_ratio )
     lowDimTrainData = model.transform( trainX )
     lowDimTestData = model.transform( testX )
     lowDimTrainOutput = prepareDataOutput( lowDimTrainData, \

@@ -11,10 +11,10 @@ dimension reduction on each fold
 
 import pandas as pd
 import numpy as np
-import FEMs.NMF.nmf as NMF
+import FEMs.NMF.lnmf as NMF
 import matplotlib.pyplot as plt
 
-def reshapeAndPrint( components, fold ):
+def reshapeAndPrint( components, fold, alphaVal, l1_ratio ):
     '''Takes in the vector encoding of each of the nmf components
     and plots them to file'''
     h = 192
@@ -35,13 +35,17 @@ def reshapeAndPrint( components, fold ):
         plt.xticks(())
         plt.yticks(())
     # save
-    plt.savefig('./Results/Images/nComp' + str(nComp) + \
+    plt.savefig('./Results/alpha' + str(alphaVal) + '/l1ratio' + str(l1_ratio) + \
+                '/Images/nComp' + str(nComp) + \
              '_fold' + str(fold) + '.png')
 
 
 def main():
     # Dataset parameters
     nIllCond = 64
+    # Saving parameters
+    alphaVals = [10]     #[25,50]    #[1,10,100]
+    l1Vals = [0.5]
 
     # Read in the data structure
     rawImages = np.load('./Data/Data_all_normalized.npy')
@@ -67,45 +71,52 @@ def main():
     sizeTat = np.shape(tatInd)[0]
     nSubjects = np.shape(tatImages)[0]
     nPixels = np.shape(allImages)[2]
-    compList = [24]      #[8,14,24,50]
+    compList = [2,8,14,24,50]
     # Record the reconstruction error for each nComponents and fold
     sizeCompList = np.shape(compList)[0]
     recErrorMat = np.zeros((sizeCompList,sizeTat))
-    compIndex = -1
-    for nComp in compList:
-        compIndex += 1
-        for fold in range(sizeTat):
-            # Produce the training dataset
-            tempTatImages = np.zeros((nSubjects,sizeTat-1,nPixels))
-            tatCol = 0
-            for tempCol in range(sizeTat-1):
-                if fold == tempCol:
-                    tatCol += 1
-                tempTatImages[:,tempCol,:] = tatImages[:,tatCol,:]
-                tatCol += 1
-            # Produce the testing dataset
-            sizeTo = nIllCond - sizeTat + 1
-            tempToImages = np.zeros((nSubjects,sizeTo,nPixels))
-            toCol = 0
-            for tempCol in range(sizeTo):
-                if toCol == 0:
-                    tempToImages[:,0,:] = tatImages[:,fold,:]
-                else:
-                    tempToImages[:,toCol,:] = toImages[:,toCol-1,:]
-                toCol += 1
-            lowDimTrain, lowDimTest, recErr, compnts = NMF.reduceDim( tempTatImages, \
-                                                    tempToImages, \
-                                                    nComponents=nComp )
-            np.save('./Results/' + str(nComp) + '/nmf_' + str(fold) + '_tr', \
-                    lowDimTrain )
-            np.save('./Results/' + str(nComp) + '/nmf_' + str(fold) + '_te', \
-                    lowDimTest )
-            recErrorMat[compIndex,fold] = recErr
-            if fold == 0:
-                reshapeAndPrint( compnts, fold )
+    for l1_ratio in l1Vals:
+        for alphaVal in alphaVals:
+            compIndex = -1
+            for nComp in compList:
+                compIndex += 1
+                for fold in range(sizeTat):
+                    # Produce the training dataset
+                    tempTatImages = np.zeros((nSubjects,sizeTat-1,nPixels))
+                    tatCol = 0
+                    for tempCol in range(sizeTat-1):
+                        if fold == tempCol:
+                            tatCol += 1
+                        tempTatImages[:,tempCol,:] = tatImages[:,tatCol,:]
+                        tatCol += 1
+                    # Produce the testing dataset
+                    sizeTo = nIllCond - sizeTat + 1
+                    tempToImages = np.zeros((nSubjects,sizeTo,nPixels))
+                    toCol = 0
+                    for tempCol in range(sizeTo):
+                        if toCol == 0:
+                            tempToImages[:,0,:] = tatImages[:,fold,:]
+                        else:
+                            tempToImages[:,toCol,:] = toImages[:,toCol-1,:]
+                        toCol += 1
+                    lowDimTrain, lowDimTest, recErr, compnts = NMF.reduceDim( tempTatImages, \
+                                                            tempToImages, \
+                                                            nComponents=nComp, \
+                                                            alpha=alphaVal, \
+                                                            l1_ratio=l1_ratio )
+                    np.save('./Results/alpha' + str(alphaVal) + \
+                            '/l1ratio' + str(l1_ratio) + '/' + str(nComp) + \
+                            '/nmf_' + str(fold) + '_tr', lowDimTrain )
+                    np.save('./Results/alpha' + str(alphaVal) + \
+                            '/l1ratio' + str(l1_ratio) + '/' + str(nComp) + \
+                            '/nmf_' + str(fold) + '_te', lowDimTest )
+                    recErrorMat[compIndex,fold] = recErr
+                    #if fold == 0:
+                        #reshapeAndPrint( compnts, fold, alphaVal, l1_ratio )
 
-    # Write the reconstruction error to file
-    np.save('./Results/recError',recErrorMat)
+            # Write the reconstruction error to file
+            np.save('./Results/alpha' + str(alphaVal) + \
+                    '/l1ratio' + str(l1_ratio) + '/recError',recErrorMat)
 
 
 
